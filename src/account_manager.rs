@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::{
     transaction_parser::{Amount, ClientId, Transaction, TransactionType, TxId},
@@ -8,7 +8,7 @@ use crate::{
 #[derive(Debug, Default)]
 struct Account {
     available: Amount,
-    held: HashSet<TxId>,
+    held: HashMap<TxId, Amount>,
     // NOTE: I'm assuming only deposits can be charged back
     deposit_amounts: HashMap<TxId, Amount>,
     locked: bool,
@@ -16,10 +16,7 @@ struct Account {
 
 impl Account {
     pub fn held_amount(&self) -> Amount {
-        self.held
-            .iter()
-            .map(|tx| self.deposit_amounts.get(tx).unwrap())
-            .sum()
+        self.held.values().sum()
     }
 
     pub fn total(&self) -> Amount {
@@ -40,18 +37,18 @@ impl Account {
     fn dispute(&mut self, tx: TxId) {
         if let Some(amount) = self.deposit_amounts.get(&tx) {
             self.available -= amount;
-            self.held.insert(tx);
+            self.held.insert(tx, *amount);
         }
     }
 
     fn resolve(&mut self, tx: TxId) {
-        if self.held.remove(&tx) {
-            self.available += self.deposit_amounts.get(&tx).unwrap();
+        if let Some(amount) = self.held.remove(&tx) {
+            self.available += amount;
         }
     }
 
     fn chargeback(&mut self, tx: TxId) {
-        if self.held.remove(&tx) {
+        if self.held.remove(&tx).is_some() {
             self.locked = true;
         }
     }
